@@ -835,7 +835,15 @@
 
   // ===== anotaciones del repositorio: anotaciones/<nombre>.json =====
   // Se fusionan con las de este navegador cada vez que el archivo del repo cambia.
-  // Mientras no cambie, lo que se borra aquí no vuelve a aparecer.
+  // Mientras no cambie, lo que se borra aquí no vuelve a aparecer. Si una versión nueva
+  // ya no trae una nota que la anterior sí traía, se borró en el origen y se borra aquí.
+  function leerRepo(k){
+    let raw = null;
+    try { raw = localStorage.getItem(k); } catch(e){}
+    if (raw == null) return null;
+    try { const o = JSON.parse(raw); if (o && typeof o === 'object' && typeof o.hash === 'string') return o; } catch(e){}
+    return { hash: String(raw), ids: [] };
+  }
   async function cargarNotasRepo(t){
     if (!actual) return;
     const e = entradas ? entradas.find(x => x.id === actual.id) : null;
@@ -848,14 +856,19 @@
     try { texto = await res.text(); } catch(err){ return; }
     if (t !== token) return;
     const h = L.hash32(texto), kRepo = L.claveRepo(BASE_PATH, actual.id);
-    let previo = null;
-    try { previo = localStorage.getItem(kRepo); } catch(err){}
-    if (previo === h) return;
+    const previo = leerRepo(kRepo);
+    if (previo && previo.hash === h) return;
     let data;
     try { data = JSON.parse(texto); } catch(err){ aviso(ruta + ' no es JSON válido', 9000); return; }
     const items = Array.isArray(data) ? data : (data && Array.isArray(data.anotaciones) ? data.anotaciones : null);
     if (!items){ aviso(ruta + ' no tiene anotaciones reconocibles', 9000); return; }
     const entrantes = items.filter(it => it && typeof it === 'object').map(desdeItem).filter(a => a.exact);
+    const idsNuevos = new Set(entrantes.map(a => a.id));
+    const quitar = new Set(previo && Array.isArray(previo.ids) ? previo.ids.filter(id => !idsNuevos.has(id)) : []);
+    const antes = annos.length;
+    annos = annos.filter(a => !quitar.has(a.id));
+    const borradas = antes - annos.length;
+    if (activeId && quitar.has(activeId)) activeId = null;
     const r = L.fusionar(annos, entrantes);
     let huerf = 0;
     for (const a of r.nuevas){
@@ -864,12 +877,14 @@
       annos.push(a);
     }
     annos.sort(cmpAnnos);
-    if (guardarNotas()){ try { localStorage.setItem(kRepo, h); } catch(err){} }
+    if (guardarNotas()){ try { localStorage.setItem(kRepo, JSON.stringify({ hash: h, ids: [...idsNuevos] })); } catch(err){} }
     refreshHighlights(); renderList(); updateChrome();
     const n = r.nuevas.length, c = r.comentarios;
-    if (n || c) aviso('desde ' + ruta + ': ' + n + (n === 1 ? ' nota' : ' notas')
-      + (c ? ', ' + c + (c === 1 ? ' comentario' : ' comentarios') : '')
-      + (huerf ? ' (' + huerf + ' sin anclar)' : ''), 7000);
+    const partes = [];
+    if (n) partes.push(n + (n === 1 ? ' nota' : ' notas') + (huerf ? ' (' + huerf + ' sin anclar)' : ''));
+    if (c) partes.push(c + (c === 1 ? ' comentario' : ' comentarios'));
+    if (borradas) partes.push(borradas + (borradas === 1 ? ' borrada' : ' borradas'));
+    if (partes.length) aviso('desde ' + ruta + ': ' + partes.join(', '), 7000);
   }
 
   // ===== captura de selección =====
