@@ -1,0 +1,14 @@
+# GitHub Pages: Settings → Pages → Source = «Deploy from a branch» (main, / root).
+#
+# Los .md de ponencias/ tienen que publicarse tal cual, porque index.html los
+# descarga y los renderiza en el navegador. Por defecto GitHub Pages activa
+# jekyll-optional-front-matter (v0.3.2), que los convertiría en páginas HTML y
+# pasaría su texto por Liquid: un «{{» o «{%» dentro de una ponencia podría
+# romper la publicación. Se desactiva con la forma de diccionario; la forma
+# corta «optional_front_matter: false» no existe en la v0.3.2.
+optional_front_matter:
+  enabled: false
+
+# Evita que un README.md dentro de ponencias/ se convierta en ponencias/index.html.
+readme_index:
+  enabled: false
