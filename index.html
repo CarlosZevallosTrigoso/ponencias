@@ -195,6 +195,42 @@
 
   .hide{display:none !important}
 
+  /* ---- timer de la ponencia ---- */
+  .t-wrap{position:relative; display:inline-flex}
+  #timer{
+    font-size:13px; font-weight:600; padding:7px 14px; min-width:9.5ch;
+    font-variant-numeric:tabular-nums; letter-spacing:.04em;
+  }
+  body.tablet .acciones #timer{font-size:15px; padding:9px 16px}
+  #timer.t-corriendo{border-color:var(--moss); color:var(--moss)}
+  #timer.t-pausa{color:var(--ink-dim); border-style:dashed}
+  #timer.t-aviso, #timer.t-aviso:hover{border-color:var(--warm); color:var(--warm)}
+  #timer.t-excedido, #timer.t-excedido:hover{background:var(--warm); border-color:var(--warm); color:#ffffff}
+  #timerPanel{
+    position:absolute; top:calc(100% + 6px); left:0; z-index:80;
+    width:280px; max-width:calc(100vw - 24px);
+    background:var(--paper); border:1px solid var(--line); border-radius:var(--r);
+    box-shadow:0 4px 14px #0002; padding:12px;
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .t-grande{font-size:36px; line-height:1.1; font-weight:600; text-align:center; font-variant-numeric:tabular-nums; letter-spacing:.03em; color:var(--ink)}
+  .t-grande.f-aviso, .t-grande.f-excedido{color:var(--warm)}
+  .t-estado{text-align:center; color:var(--ink-dim); font-size:10.5px; margin-top:-6px}
+  .t-presets{display:flex; gap:6px}
+  .t-presets button{flex:1; padding:6px 0}
+  .t-presets button.sel{border-color:var(--moss); color:var(--moss)}
+  .t-campo{display:flex; align-items:center; gap:8px; color:var(--ink-dim); font-size:11px}
+  .t-campo span:first-child{min-width:7ch}
+  .t-campo input{
+    width:7ch; font-family:var(--mono); font-size:13px; padding:5px 6px; text-align:right;
+    border:1px solid var(--line); border-radius:var(--r); background:var(--paper); color:var(--ink);
+  }
+  .t-campo input:focus{outline:1px solid var(--moss); border-color:var(--moss)}
+  .t-acc{display:flex; gap:8px}
+  .t-acc button{flex:1; padding:8px 0; font-size:12px}
+  #timerPlay{background:var(--moss); border-color:var(--moss); color:#ffffff; font-weight:600}
+  #timerPlay:hover{background:var(--warm); border-color:var(--warm); color:#ffffff}
+
   /* ---- contador de palabras (esquina inferior derecha) ---- */
   #stats{
     position:fixed; right:12px; bottom:12px; z-index:70; display:none;
@@ -221,6 +257,22 @@
     <h1 id="marca" title="Recargar">FORJA · ponencias</h1>
     <div id="docname" aria-live="polite"></div>
     <div class="acciones">
+      <span class="t-wrap">
+        <button id="timer" aria-haspopup="dialog" aria-expanded="false" aria-controls="timerPanel" title="Timer de la ponencia">timer</button>
+        <div id="timerPanel" class="hide" role="dialog" aria-label="Configurar timer">
+          <div id="timerGrande" class="t-grande">20:00</div>
+          <div id="timerEstado" class="t-estado"></div>
+          <div class="t-presets" id="timerPresets">
+            <button data-min="10">10</button><button data-min="15">15</button><button data-min="20">20</button><button data-min="30">30</button><button data-min="45">45</button>
+          </div>
+          <label class="t-campo"><span>duración</span><input type="number" id="timerMin" min="1" max="600" step="1" inputmode="numeric"><span>min</span></label>
+          <label class="t-campo"><span>aviso</span><input type="number" id="timerAviso" min="0" max="120" step="1" inputmode="numeric"><span>min antes del final</span></label>
+          <div class="t-acc">
+            <button id="timerPlay">iniciar</button>
+            <button id="timerReset">reiniciar</button>
+          </div>
+        </div>
+      </span>
       <button id="aLista" class="solo-lector" title="Volver a la lista de ponencias">ponencias</button>
       <button id="export" class="solo-lector" disabled title="Descargar las anotaciones como .json con el mismo nombre de la ponencia, para subirlo a anotaciones/">exportar .json</button>
       <button id="toggleToc" class="solo-lector" title="Mostrar u ocultar el índice">índice</button>
@@ -424,6 +476,53 @@
 
     function slug(s){ return String(s).trim().toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, '').replace(/\s/g, '-'); }
 
+    // ---- timer: el estado guarda la hora de inicio, no un contador, para sobrevivir a recargas
+    //      y a la suspensión de la pestaña. Funciones puras: reciben «ahora» y devuelven estado nuevo.
+    const MIN = 60000;
+    const acotar = (v, a, b) => Math.max(a, Math.min(b, v));
+    const timer = {
+      nuevo(min, avisoMin){
+        const dur = Math.round(acotar(+min || 20, 1, 600) * MIN);
+        return { dur, aviso: Math.min(dur, Math.round(acotar(+avisoMin || 0, 0, 120) * MIN)), inicio: null, previo: 0 };
+      },
+      cargar(raw){
+        try {
+          const o = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          if (o && Number.isFinite(o.dur) && o.dur > 0 && Number.isFinite(o.aviso) && Number.isFinite(o.previo) && o.previo >= 0
+              && (o.inicio === null || Number.isFinite(o.inicio)))
+            return { dur: o.dur, aviso: acotar(o.aviso, 0, o.dur), inicio: o.inicio, previo: o.previo };
+        } catch(e){}
+        return timer.nuevo(20, 5);
+      },
+      corriendo(e){ return e.inicio != null; },
+      transcurrido(e, ahora){ return e.previo + (e.inicio != null ? Math.max(0, ahora - e.inicio) : 0); },
+      restante(e, ahora){ return e.dur - timer.transcurrido(e, ahora); },
+      iniciar(e, ahora){ return e.inicio != null ? e : Object.assign({}, e, { inicio: ahora }); },
+      pausar(e, ahora){ return e.inicio == null ? e : Object.assign({}, e, { inicio: null, previo: timer.transcurrido(e, ahora) }); },
+      reiniciar(e){ return Object.assign({}, e, { inicio: null, previo: 0 }); },
+      configurar(e, min, avisoMin){
+        const n = timer.nuevo(min, avisoMin);
+        return Object.assign({}, e, { dur: n.dur, aviso: n.aviso });
+      },
+      // quieto: sin empezar · normal · aviso: dentro del margen final · excedido: tiempo cumplido
+      fase(e, ahora){
+        if (e.inicio == null && e.previo === 0) return 'quieto';
+        const r = timer.restante(e, ahora);
+        if (r <= 0) return 'excedido';
+        if (r <= e.aviso) return 'aviso';
+        return 'normal';
+      },
+      // cuenta regresiva redondeando hacia arriba (llega a 00:00 justo al final); después, +tiempo excedido
+      formato(ms){
+        const neg = ms <= 0;
+        const s = neg ? Math.floor(-ms / 1000) : Math.ceil(ms / 1000);
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+        const dd = (n) => String(n).padStart(2, '0');
+        const t = h ? h + ':' + dd(m) + ':' + dd(ss) : dd(m) + ':' + dd(ss);
+        return neg && s > 0 ? '+' + t : t;
+      }
+    };
+
     // cada sitio de github.io comparte localStorage con los demás repos: la clave lleva la ruta base
     function claveNotas(basePath, id){ return 'forja-ponencias:' + basePath + ':notas:' + id; }
     function claveRepo(basePath, id){ return 'forja-ponencias:' + basePath + ':repo:' + id; }
@@ -450,7 +549,7 @@
     return { normalizarRuta, normalizarRutaNotas, idDeRuta, idDeRutaNotas, rutaDeId, rutaNotasDeId,
              urlDeRuta, hashDeId, idDeHash, nombreLegible, claveRepo, fusionar,
              limpiarInline, tituloDeMd, buscarCita, hash32, parsearManifiesto,
-             resolverEnlace, resolverRecurso, slug, claveNotas };
+             resolverEnlace, resolverRecurso, slug, claveNotas, timer };
   })();
 
   // =====================================================================
@@ -1188,6 +1287,79 @@
   $('marca').addEventListener('click', () => location.reload());
 
   if (!canHL) $('contador').title = 'Este navegador no resalta en pantalla, pero las anotaciones y el export funcionan.';
+
+  // ===== timer de la ponencia =====
+  const T = L.timer;
+  let timerEst = T.cargar(leerPref('timer'));
+  let timerTick = null;
+  function guardarTimer(){ guardarPref('timer', JSON.stringify(timerEst)); }
+  function pintarTimer(){
+    const ahora = Date.now(), f = T.fase(timerEst, ahora), corre = T.corriendo(timerEst);
+    const txt = T.formato(T.restante(timerEst, ahora));
+    const b = $('timer');
+    b.textContent = f === 'quieto' ? 'timer' : (corre ? '' : '‖ ') + txt;
+    b.classList.toggle('t-corriendo', corre && f === 'normal');
+    b.classList.toggle('t-pausa', !corre && f !== 'quieto');
+    b.classList.toggle('t-aviso', f === 'aviso');
+    b.classList.toggle('t-excedido', f === 'excedido');
+    b.title = f === 'quieto' ? 'Timer de la ponencia (' + T.formato(timerEst.dur) + ')'
+      : (f === 'excedido' ? 'Tiempo cumplido' : 'Tiempo restante') + (corre ? '' : ' · en pausa');
+    const g = $('timerGrande');
+    g.textContent = txt;
+    g.className = 't-grande f-' + f;
+    $('timerEstado').textContent = f === 'quieto' ? 'sin empezar'
+      : f === 'excedido' ? 'tiempo cumplido' + (corre ? '' : ' · en pausa')
+      : (corre ? 'en curso' : 'en pausa');
+    $('timerPlay').textContent = corre ? 'pausar' : (f === 'quieto' ? 'iniciar' : 'reanudar');
+    const min = timerEst.dur / 60000;
+    $('timerPresets').querySelectorAll('button').forEach(p => p.classList.toggle('sel', +p.dataset.min === min));
+  }
+  function programarTick(){
+    clearInterval(timerTick); timerTick = null;
+    if (T.corriendo(timerEst)) timerTick = setInterval(pintarTimer, 250);
+  }
+  function actualizarTimer(nuevo){ timerEst = nuevo; guardarTimer(); programarTick(); pintarTimer(); }
+  function sincronizarCampos(){
+    $('timerMin').value = +(timerEst.dur / 60000).toFixed(2);
+    $('timerAviso').value = +(timerEst.aviso / 60000).toFixed(2);
+  }
+  function abrirTimer(abrir){
+    const p = $('timerPanel');
+    p.classList.toggle('hide', !abrir);
+    $('timer').setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    if (!abrir) return;
+    sincronizarCampos(); pintarTimer();
+    // que no se salga por la derecha en pantallas angostas
+    p.style.left = '0px';
+    const rc = p.getBoundingClientRect();
+    if (rc.right > window.innerWidth - 8) p.style.left = Math.min(0, window.innerWidth - 8 - rc.right) + 'px';
+  }
+  $('timer').addEventListener('click', e => { e.stopPropagation(); abrirTimer($('timerPanel').classList.contains('hide')); });
+  $('timerPanel').addEventListener('click', e => e.stopPropagation());
+  document.addEventListener('click', () => { if (!$('timerPanel').classList.contains('hide')) abrirTimer(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('timerPanel').classList.contains('hide')){ abrirTimer(false); $('timer').focus(); } });
+  $('timerPresets').addEventListener('click', e => {
+    const b = e.target.closest('button[data-min]'); if (!b) return;
+    actualizarTimer(T.configurar(timerEst, +b.dataset.min, timerEst.aviso / 60000));
+    sincronizarCampos();
+  });
+  function leerCampos(){
+    const min = parseFloat($('timerMin').value), av = parseFloat($('timerAviso').value);
+    actualizarTimer(T.configurar(timerEst,
+      Number.isFinite(min) && min > 0 ? min : timerEst.dur / 60000,
+      Number.isFinite(av) && av >= 0 ? av : timerEst.aviso / 60000));
+    sincronizarCampos();
+  }
+  $('timerMin').addEventListener('change', leerCampos);
+  $('timerAviso').addEventListener('change', leerCampos);
+  [$('timerMin'), $('timerAviso')].forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); i.blur(); leerCampos(); } }));
+  $('timerPlay').addEventListener('click', () => {
+    const ahora = Date.now();
+    actualizarTimer(T.corriendo(timerEst) ? T.pausar(timerEst, ahora) : T.iniciar(timerEst, ahora));
+  });
+  $('timerReset').addEventListener('click', () => actualizarTimer(T.reiniciar(timerEst)));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) pintarTimer(); });
+  pintarTimer(); programarTick();
 
   window.forjaPonencias = { logica: L };
   route();
