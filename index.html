@@ -222,8 +222,7 @@
     <div id="docname" aria-live="polite"></div>
     <div class="acciones">
       <button id="aLista" class="solo-lector" title="Volver a la lista de ponencias">ponencias</button>
-      <button id="cargarJson" class="solo-lector" title="Importar anotaciones desde un .json">cargar .json</button>
-      <button id="export" class="solo-lector" disabled title="Descargar las anotaciones de esta ponencia">exportar .json</button>
+      <button id="export" class="solo-lector" disabled title="Descargar las anotaciones como .json con el mismo nombre de la ponencia, para subirlo a anotaciones/">exportar .json</button>
       <button id="toggleToc" class="solo-lector" title="Mostrar u ocultar el índice">índice</button>
       <button id="togglePanel" class="solo-lector" title="Mostrar u ocultar el panel de anotaciones">anotaciones</button>
       <button id="tablet" title="Modo táctil: botón anotar fijo y objetivos grandes">tablet</button>
@@ -267,8 +266,6 @@
     </div>
   </div>
 
-  <input type="file" id="fileJson" accept=".json,application/json" class="hide">
-
 <script>
 (function(){
   'use strict';
@@ -278,25 +275,30 @@
   // =====================================================================
   const L = (function(){
     const CARPETA = 'ponencias/';
+    const NOTAS = 'anotaciones/';   // anotaciones/x.json acompaña a ponencias/x.md
 
     function segmentosValidos(segs){
       return segs.length > 0 && segs.every(s => s && s !== '.' && s !== '..' && !/[\\\u0000-\u001f]/.test(s));
     }
-    // ruta del manifiesto ("/ponencias/x.md") → "ponencias/x.md", o null si no es un .md de la carpeta
-    function normalizarRuta(r){
+    // ruta del manifiesto ("/ponencias/x.md") → "ponencias/x.md", o null si no está en la carpeta o no tiene la extensión
+    function normalizarEn(r, carpeta, ext){
       if (typeof r !== 'string') return null;
       r = r.replace(/^\/+/, '');
-      if (r.slice(0, CARPETA.length) !== CARPETA) return null;
-      if (!/\.md$/i.test(r)) return null;
+      if (r.slice(0, carpeta.length) !== carpeta) return null;
+      if (!ext.test(r)) return null;
       if (!segmentosValidos(r.split('/'))) return null;
       return r;
     }
+    function normalizarRuta(r){ return normalizarEn(r, CARPETA, /\.md$/i); }
+    function normalizarRutaNotas(r){ return normalizarEn(r, NOTAS, /\.json$/i); }
     function idDeRuta(ruta){ return ruta.slice(CARPETA.length).replace(/\.md$/i, ''); }
+    function idDeRutaNotas(ruta){ return ruta.slice(NOTAS.length).replace(/\.json$/i, ''); }
     function rutaDeId(id){
       if (typeof id !== 'string' || !id) return null;
       if (!segmentosValidos(id.split('/'))) return null;
       return CARPETA + id + '.md';
     }
+    function rutaNotasDeId(id){ const r = rutaDeId(id); return r ? NOTAS + id + '.json' : null; }
     function urlDeRuta(ruta){ return ruta.split('/').map(encodeURIComponent).join('/'); }
     function hashDeId(id){ return '#/' + id.split('/').map(encodeURIComponent).join('/'); }
     function idDeHash(h){
@@ -373,6 +375,12 @@
       try { data = JSON.parse(t); } catch(e){ return { ok: false, error: 'json', detalle: e.message }; }
       const arr = data && Array.isArray(data.ponencias) ? data.ponencias : null;
       if (!arr) return { ok: false, error: 'formato' };
+      // .json de anotaciones/ con el mismo nombre (y subcarpeta) que la ponencia
+      const notas = new Map();
+      for (const p of (Array.isArray(data.anotaciones) ? data.anotaciones : [])){
+        const ruta = normalizarRutaNotas(p && p.ruta);
+        if (ruta && !notas.has(idDeRutaNotas(ruta))) notas.set(idDeRutaNotas(ruta), ruta);
+      }
       const vistos = new Set(), entradas = [];
       for (const p of arr){
         const ruta = normalizarRuta(p && p.ruta);
@@ -380,7 +388,7 @@
         const id = idDeRuta(ruta);
         if (vistos.has(id)) continue;
         vistos.add(id);
-        entradas.push({ id, ruta });
+        entradas.push({ id, ruta, notas: notas.get(id) || null });
       }
       entradas.sort((a, b) => a.id.localeCompare(b.id, 'es', { numeric: true, sensitivity: 'base' }));
       return { ok: true, entradas };
@@ -418,8 +426,29 @@
 
     // cada sitio de github.io comparte localStorage con los demás repos: la clave lleva la ruta base
     function claveNotas(basePath, id){ return 'forja-ponencias:' + basePath + ':notas:' + id; }
+    function claveRepo(basePath, id){ return 'forja-ponencias:' + basePath + ':repo:' + id; }
 
-    return { normalizarRuta, idDeRuta, rutaDeId, urlDeRuta, hashDeId, idDeHash, nombreLegible,
+    // une las anotaciones de un .json con las locales: por id; en ids comunes, une comentarios
+    // devuelve las anotaciones nuevas (sin anclar todavía) y cuántos comentarios se agregaron
+    function fusionar(locales, entrantes){
+      const nuevas = []; let comentarios = 0;
+      const porId = new Map(locales.map(a => [a.id, a]));
+      for (const a of entrantes){
+        const ex = porId.get(a.id);
+        if (!ex){ porId.set(a.id, a); nuevas.push(a); continue; }
+        const claves = new Set(ex.comentarios.map(c => c.creado + '\u0000' + c.texto));
+        let cambio = false;
+        for (const c of a.comentarios){
+          const k = c.creado + '\u0000' + c.texto;
+          if (!claves.has(k)){ claves.add(k); ex.comentarios.push(c); comentarios++; cambio = true; }
+        }
+        if (cambio) ex.comentarios.sort((x, y) => String(x.creado).localeCompare(String(y.creado)));
+      }
+      return { nuevas, comentarios };
+    }
+
+    return { normalizarRuta, normalizarRutaNotas, idDeRuta, idDeRutaNotas, rutaDeId, rutaNotasDeId,
+             urlDeRuta, hashDeId, idDeHash, nombreLegible, claveRepo, fusionar,
              limpiarInline, tituloDeMd, buscarCita, hash32, parsearManifiesto,
              resolverEnlace, resolverRecurso, slug, claveNotas };
   })();
@@ -539,7 +568,8 @@
       const meta = document.createElement('span');
       meta.className = 'meta';
       const n = contarNotas(e.id);
-      meta.textContent = e.ruta + (n ? '  ·  ' + n + (n === 1 ? ' nota' : ' notas') : '');
+      meta.textContent = e.ruta + (n ? '  ·  ' + n + (n === 1 ? ' nota' : ' notas') : '')
+        + (e.notas ? '  ·  ' + e.notas : '');
       a.append(tit, meta);
       li.appendChild(a);
       ol.appendChild(li);
@@ -610,6 +640,7 @@
     if (tit) titulos[ruta] = tit;
     actual = { id, ruta, titulo: tit || L.nombreLegible(id) };
     render(md);
+    cargarNotasRepo(t);
   }
 
   // ===== render =====
@@ -748,17 +779,19 @@
   }
   function desdeItem(it){
     const obj = (it && it.objetivo) || it || {};
-    const ahora = new Date().toISOString();
+    const exact = typeof obj.exact === 'string' ? obj.exact : '';
+    const creado = typeof it.creado === 'string' ? it.creado : '';
+    // sin fechas ni ids aleatorios: el mismo .json leído dos veces produce las mismas notas y no duplica
     let coments = [];
     if (Array.isArray(it.comentarios))
       coments = it.comentarios.filter(c => c && typeof c.texto === 'string' && c.texto.trim())
-                              .map(c => ({ texto: c.texto, creado: c.creado || ahora }));
+                              .map(c => ({ texto: c.texto, creado: typeof c.creado === 'string' ? c.creado : creado }));
     else if (typeof it.nota === 'string' && it.nota.trim())
-      coments = [{ texto: it.nota, creado: it.creado || ahora }];
+      coments = [{ texto: it.nota, creado }];
     return {
-      id: typeof it.id === 'string' && it.id ? it.id : nuevoId(),
-      comentarios: coments, creado: it.creado || ahora,
-      exact: typeof obj.exact === 'string' ? obj.exact : '',
+      id: typeof it.id === 'string' && it.id ? it.id : 'h' + L.hash32(exact + '\u0000' + creado),
+      comentarios: coments, creado: creado || new Date().toISOString(),
+      exact,
       prefix: typeof obj.prefix === 'string' ? obj.prefix : '',
       suffix: typeof obj.suffix === 'string' ? obj.suffix : '',
       textoPlano: obj.textoPlano || null
@@ -800,44 +833,44 @@
     if (huerf) aviso(huerf + (huerf === 1 ? ' nota sin anclar' : ' notas sin anclar') + (cambio ? ': el texto cambió' : ''), 8000);
   }
 
-  // ===== importar .json =====
-  function importJSON(text){
+  // ===== anotaciones del repositorio: anotaciones/<nombre>.json =====
+  // Se fusionan con las de este navegador cada vez que el archivo del repo cambia.
+  // Mientras no cambie, lo que se borra aquí no vuelve a aparecer.
+  async function cargarNotasRepo(t){
     if (!actual) return;
+    const e = entradas ? entradas.find(x => x.id === actual.id) : null;
+    const ruta = entradas ? (e && e.notas) : L.rutaNotasDeId(actual.id);
+    if (!ruta) return;
+    let res;
+    try { res = await fetch(L.urlDeRuta(ruta), { cache: 'no-cache' }); } catch(err){ return; }
+    if (t !== token || !res.ok) return;
+    let texto;
+    try { texto = await res.text(); } catch(err){ return; }
+    if (t !== token) return;
+    const h = L.hash32(texto), kRepo = L.claveRepo(BASE_PATH, actual.id);
+    let previo = null;
+    try { previo = localStorage.getItem(kRepo); } catch(err){}
+    if (previo === h) return;
     let data;
-    try { data = JSON.parse(text); } catch(e){ alert('JSON inválido: ' + e.message); return; }
-    const items = Array.isArray(data) ? data : (data && Array.isArray(data.anotaciones) ? data.anotaciones : []);
-    if (!items.length){ alert('El .json no contiene anotaciones reconocibles.'); return; }
-    const d = data && data.documento;
-    if (d && d.hashMd && d.hashMd !== L.hash32(rawMd)){
-      const de = d.ruta || d.nombre || 'otro documento';
-      if (!confirm('El .json se generó sobre ' + de + ' en otra versión o sobre otro texto. Se intentará ubicar cada nota por su cita; las que no aparezcan quedarán sin anclar. ¿Continuar?')) return;
-    }
-    let ok = 0, huerf = 0, dup = 0, inval = 0;
-    for (const it of items){
-      if (!it || typeof it !== 'object'){ inval++; continue; }
-      const a = desdeItem(it);
-      if (!a.exact){ inval++; continue; }
-      if (annos.some(x => x.id === a.id)){ dup++; continue; }
+    try { data = JSON.parse(texto); } catch(err){ aviso(ruta + ' no es JSON válido', 9000); return; }
+    const items = Array.isArray(data) ? data : (data && Array.isArray(data.anotaciones) ? data.anotaciones : null);
+    if (!items){ aviso(ruta + ' no tiene anotaciones reconocibles', 9000); return; }
+    const entrantes = items.filter(it => it && typeof it === 'object').map(desdeItem).filter(a => a.exact);
+    const r = L.fusionar(annos, entrantes);
+    let huerf = 0;
+    for (const a of r.nuevas){
       anclarAnno(a, a.textoPlano); delete a.textoPlano;
-      annos.push(a); a.huerfana ? huerf++ : ok++;
+      if (a.huerfana) huerf++;
+      annos.push(a);
     }
     annos.sort(cmpAnnos);
-    guardarNotas();
+    if (guardarNotas()){ try { localStorage.setItem(kRepo, h); } catch(err){} }
     refreshHighlights(); renderList(); updateChrome();
-    aviso(ok + (ok === 1 ? ' importada' : ' importadas')
-      + (huerf ? ', ' + huerf + ' sin anclar' : '')
-      + (dup ? ', ' + dup + ' repetidas omitidas' : '')
-      + (inval ? ', ' + inval + ' inválidas' : ''), 7000);
+    const n = r.nuevas.length, c = r.comentarios;
+    if (n || c) aviso('desde ' + ruta + ': ' + n + (n === 1 ? ' nota' : ' notas')
+      + (c ? ', ' + c + (c === 1 ? ' comentario' : ' comentarios') : '')
+      + (huerf ? ' (' + huerf + ' sin anclar)' : ''), 7000);
   }
-  function readJsonFile(file){
-    if (!file) return;
-    const fr = new FileReader();
-    fr.onload = () => importJSON(String(fr.result));
-    fr.onerror = () => alert('No se pudo leer el .json.');
-    fr.readAsText(file);
-  }
-  $('cargarJson').addEventListener('click', () => $('fileJson').click());
-  $('fileJson').addEventListener('change', e => { readJsonFile(e.target.files[0]); e.target.value = ''; });
 
   // ===== captura de selección =====
   function captureSelection(){
@@ -1000,7 +1033,6 @@
 
   function updateChrome(){
     $('export').disabled = !actual || !annos.length;
-    $('cargarJson').disabled = !actual;
     $('contador').textContent = annos.length ? (annos.length + (annos.length === 1 ? ' anotación' : ' anotaciones')) : '';
     $('controlesVis').style.display = actual ? 'block' : 'none';
     updateStats();
@@ -1133,7 +1165,7 @@
     const url = URL.createObjectURL(blob);
     const el = document.createElement('a');
     el.href = url;
-    el.download = actual.id.split('/').pop() + '.anotaciones.json';
+    el.download = actual.id.split('/').pop() + '.json';   // mismo nombre que la ponencia: va a anotaciones/
     document.body.appendChild(el); el.click(); el.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });

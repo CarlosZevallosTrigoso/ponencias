@@ -10,7 +10,9 @@ El archivo no debe empezar con un bloque de *front matter* (`---`), porque GitHu
 
 ## Cómo anotar
 
-Selecciona un pasaje y pulsa **anotar**. Cada anotación admite varios comentarios. Las notas se guardan en este navegador, una colección por ponencia, y se vuelven a ubicar solas si el texto cambia. Para llevarlas a otro equipo, usa **exportar .json** y luego **cargar .json** en el otro navegador.
+Selecciona un pasaje y pulsa **anotar**. Cada anotación admite varios comentarios. Las notas se guardan en este navegador, una colección por ponencia, y se vuelven a ubicar solas si el texto cambia.
+
+Para tenerlas en todos tus equipos, pulsa **exportar .json** y sube el archivo a la carpeta `anotaciones/` del repositorio. El nombre es el mismo de la ponencia: las notas de `ponencias/ejemplo.md` van en `anotaciones/ejemplo.json`. Al abrir la ponencia, la app las carga sola.
 
 > Si un pasaje anotado desaparece del texto, la nota se conserva como *sin anclar* y vuelve a su lugar si el pasaje reaparece.
 
