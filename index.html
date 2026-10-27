@@ -195,30 +195,63 @@
 
   .hide{display:none !important}
 
-  /* ---- timer de la ponencia ---- */
-  .t-wrap{position:relative; display:inline-flex}
+  /* ---- timer: botón de cabecera ---- */
   #timer{
     font-size:13px; font-weight:600; padding:7px 14px; min-width:9.5ch;
     font-variant-numeric:tabular-nums; letter-spacing:.04em;
   }
   body.tablet .acciones #timer{font-size:15px; padding:9px 16px}
+  #timer.activo{border-color:var(--moss); color:var(--moss)}
   #timer.t-corriendo{border-color:var(--moss); color:var(--moss)}
   #timer.t-pausa{color:var(--ink-dim); border-style:dashed}
   #timer.t-aviso, #timer.t-aviso:hover{border-color:var(--warm); color:var(--warm)}
   #timer.t-excedido, #timer.t-excedido:hover{background:var(--warm); border-color:var(--warm); color:#ffffff}
-  #timerPanel{
-    position:absolute; top:calc(100% + 6px); left:0; z-index:80;
-    width:280px; max-width:calc(100vw - 24px);
-    background:var(--paper); border:1px solid var(--line); border-radius:var(--r);
-    box-shadow:0 4px 14px #0002; padding:12px;
-    display:flex; flex-direction:column; gap:10px;
+
+  /* ---- timer flotante: se arrastra desde el cuerpo y cambia de tamaño desde la esquina ---- */
+  #tflot{
+    --tw:220px;
+    position:fixed; z-index:90; left:0; top:0; width:var(--tw);
+    background:#ffffff; border:1px solid var(--line); border-radius:var(--r);
+    box-shadow:0 6px 18px #0002; padding:6px 10px 20px;
+    user-select:none; -webkit-user-select:none; touch-action:none; cursor:grab;
   }
-  .t-grande{font-size:36px; line-height:1.1; font-weight:600; text-align:center; font-variant-numeric:tabular-nums; letter-spacing:.03em; color:var(--ink)}
-  .t-grande.f-aviso, .t-grande.f-excedido{color:var(--warm)}
-  .t-estado{text-align:center; color:var(--ink-dim); font-size:10.5px; margin-top:-6px}
+  #tflot.arrastrando{cursor:grabbing; box-shadow:0 10px 26px #0003}
+  #tflot.pausa{border-style:dashed}
+  #tflot.f-aviso{border-color:var(--warm)}
+  #tflot.f-excedido{border:2px solid var(--warm)}
+  .t-grande{
+    font-size:calc(var(--tw) * .26); line-height:1.05; font-weight:600; text-align:center;
+    font-variant-numeric:tabular-nums; letter-spacing:.02em; color:var(--ink);
+    padding:calc(var(--tw) * .04) 0 calc(var(--tw) * .05); white-space:nowrap;
+  }
+  #tflot.pausa .t-grande{color:var(--ink-dim)}
+  #tflot.f-aviso .t-grande, #tflot.f-excedido .t-grande{color:var(--warm)}
+  .t-ctrl{display:flex; gap:6px; flex-wrap:wrap; justify-content:center}
+  .t-ctrl button{
+    flex:1 1 0; min-width:34px; min-height:34px; padding:3px 0;
+    font-size:clamp(11px, calc(var(--tw) * .06), 20px); font-variant-numeric:tabular-nums;
+  }
+  body.tablet .t-ctrl button{min-height:44px}
+  #timerPlay{background:var(--moss); border-color:var(--moss); color:#ffffff; font-weight:600}
+  #timerPlay:hover{background:var(--warm); border-color:var(--warm); color:#ffffff}
+  #tflot.f-excedido .t-mas{background:var(--moss); border-color:var(--moss); color:#ffffff; font-weight:600}
+  .t-x{
+    position:absolute; top:1px; right:2px; z-index:1; border:0; background:transparent;
+    color:var(--ink-dim); font-size:15px; line-height:1; padding:3px 6px;
+  }
+  .t-x:hover:not(:disabled){color:var(--warm)}
+  .t-asa{
+    position:absolute; right:0; bottom:0; width:22px; height:22px; cursor:nwse-resize; touch-action:none;
+    background:linear-gradient(135deg, transparent 55%, var(--ink-dim) 55%, var(--ink-dim) 61%, transparent 61%, transparent 72%, var(--ink-dim) 72%, var(--ink-dim) 78%, transparent 78%);
+    opacity:.55;
+  }
+  body.tablet #tflot{padding-bottom:28px}
+  body.tablet .t-asa{width:32px; height:32px}
+  .t-config{margin-top:10px; display:flex; flex-direction:column; gap:8px; cursor:default}
   .t-presets{display:flex; gap:6px}
   .t-presets button{flex:1; padding:6px 0}
   .t-presets button.sel{border-color:var(--moss); color:var(--moss)}
+  body.tablet .t-presets button{min-height:40px}
   .t-campo{display:flex; align-items:center; gap:8px; color:var(--ink-dim); font-size:11px}
   .t-campo span:first-child{min-width:7ch}
   .t-campo input{
@@ -226,10 +259,6 @@
     border:1px solid var(--line); border-radius:var(--r); background:var(--paper); color:var(--ink);
   }
   .t-campo input:focus{outline:1px solid var(--moss); border-color:var(--moss)}
-  .t-acc{display:flex; gap:8px}
-  .t-acc button{flex:1; padding:8px 0; font-size:12px}
-  #timerPlay{background:var(--moss); border-color:var(--moss); color:#ffffff; font-weight:600}
-  #timerPlay:hover{background:var(--warm); border-color:var(--warm); color:#ffffff}
 
   /* ---- contador de palabras (esquina inferior derecha) ---- */
   #stats{
@@ -257,22 +286,7 @@
     <h1 id="marca" title="Recargar">FORJA · ponencias</h1>
     <div id="docname" aria-live="polite"></div>
     <div class="acciones">
-      <span class="t-wrap">
-        <button id="timer" aria-haspopup="dialog" aria-expanded="false" aria-controls="timerPanel" title="Timer de la ponencia">timer</button>
-        <div id="timerPanel" class="hide" role="dialog" aria-label="Configurar timer">
-          <div id="timerGrande" class="t-grande">20:00</div>
-          <div id="timerEstado" class="t-estado"></div>
-          <div class="t-presets" id="timerPresets">
-            <button data-min="10">10</button><button data-min="15">15</button><button data-min="20">20</button><button data-min="30">30</button><button data-min="45">45</button>
-          </div>
-          <label class="t-campo"><span>duración</span><input type="number" id="timerMin" min="1" max="600" step="1" inputmode="numeric"><span>min</span></label>
-          <label class="t-campo"><span>aviso</span><input type="number" id="timerAviso" min="0" max="120" step="1" inputmode="numeric"><span>min antes del final</span></label>
-          <div class="t-acc">
-            <button id="timerPlay">iniciar</button>
-            <button id="timerReset">reiniciar</button>
-          </div>
-        </div>
-      </span>
+      <button id="timer" aria-pressed="false" aria-controls="tflot" title="Mostrar u ocultar el timer">timer</button>
       <button id="aLista" class="solo-lector" title="Volver a la lista de ponencias">ponencias</button>
       <button id="export" class="solo-lector" disabled title="Descargar las anotaciones como .json con el mismo nombre de la ponencia, para subirlo a anotaciones/">exportar .json</button>
       <button id="toggleToc" class="solo-lector" title="Mostrar u ocultar el índice">índice</button>
@@ -306,6 +320,26 @@
 
   <button id="fab" title="Crear anotación">＋ anotar</button>
   <div id="stats" class="solo-lector"></div>
+
+  <div id="tflot" class="hide" role="dialog" aria-label="Timer">
+    <button id="tCerrar" class="t-x" title="Ocultar el timer" aria-label="Ocultar el timer">×</button>
+    <div id="timerGrande" class="t-grande">20:00</div>
+    <div class="t-ctrl">
+      <button id="timerPlay" title="Iniciar" aria-label="Iniciar">▶&#xFE0E;</button>
+      <button id="timerReset" title="Reiniciar" aria-label="Reiniciar">↺</button>
+      <button id="tMas1" class="t-mas" title="Añadir 1 minuto">+1</button>
+      <button id="tMas5" class="t-mas" title="Añadir 5 minutos">+5</button>
+      <button id="tAjustes" title="Duración y aviso" aria-label="Duración y aviso" aria-expanded="false" aria-controls="tConfig">⚙&#xFE0E;</button>
+    </div>
+    <div id="tConfig" class="t-config hide">
+      <div class="t-presets" id="timerPresets">
+        <button data-min="10">10</button><button data-min="15">15</button><button data-min="20">20</button><button data-min="30">30</button><button data-min="45">45</button>
+      </div>
+      <label class="t-campo"><span>duración</span><input type="number" id="timerMin" min="1" max="600" step="1" inputmode="decimal"><span>min</span></label>
+      <label class="t-campo"><span>aviso</span><input type="number" id="timerAviso" min="0" max="120" step="1" inputmode="decimal"><span>min antes</span></label>
+    </div>
+    <div id="tAsa" class="t-asa" title="Arrastra para cambiar el tamaño"></div>
+  </div>
 
   <div id="controlesVis" class="solo-lector">
     <button id="btnAjustes" title="Ajustes de lectura">ajustes</button>
@@ -500,6 +534,24 @@
       iniciar(e, ahora){ return e.inicio != null ? e : Object.assign({}, e, { inicio: ahora }); },
       pausar(e, ahora){ return e.inicio == null ? e : Object.assign({}, e, { inicio: null, previo: timer.transcurrido(e, ahora) }); },
       reiniciar(e){ return Object.assign({}, e, { inicio: null, previo: 0 }); },
+      // +1 / +5: alarga la duración; si ya se cumplió, vuelve a quedar tiempo por delante
+      sumar(e, ms){ return Object.assign({}, e, { dur: acotar(e.dur + ms, MIN, 600 * MIN) }); },
+      // posición y tamaño del flotante, siempre dentro de la ventana
+      acotarCaja(c, vw, vh, h){
+        const w = Math.round(acotar(c.w, 120, Math.max(120, Math.min(640, vw - 16))));
+        return {
+          w,
+          left: Math.round(acotar(c.left, 8, Math.max(8, vw - w - 8))),
+          top: Math.round(acotar(c.top, 8, Math.max(8, vh - h - 8)))
+        };
+      },
+      cargarCaja(raw, vw){
+        try {
+          const o = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          if (o && [o.left, o.top, o.w].every(Number.isFinite)) return { left: o.left, top: o.top, w: o.w };
+        } catch(e){}
+        return { left: vw - 236, top: 64, w: 220 };
+      },
       configurar(e, min, avisoMin){
         const n = timer.nuevo(min, avisoMin);
         return Object.assign({}, e, { dur: n.dur, aviso: n.aviso });
@@ -1288,31 +1340,38 @@
 
   if (!canHL) $('contador').title = 'Este navegador no resalta en pantalla, pero las anotaciones y el export funcionan.';
 
-  // ===== timer de la ponencia =====
+  // ===== timer flotante =====
   const T = L.timer;
+  const MINUTO = 60000;
+  const tf = $('tflot');
   let timerEst = T.cargar(leerPref('timer'));
+  let caja = T.cargarCaja(leerPref('timer-caja'), window.innerWidth);
+  let tVisible = leerPref('timer-visible') === '1';
   let timerTick = null;
+
   function guardarTimer(){ guardarPref('timer', JSON.stringify(timerEst)); }
   function pintarTimer(){
     const ahora = Date.now(), f = T.fase(timerEst, ahora), corre = T.corriendo(timerEst);
     const txt = T.formato(T.restante(timerEst, ahora));
-    const b = $('timer');
-    b.textContent = f === 'quieto' ? 'timer' : (corre ? '' : '‖ ') + txt;
-    b.classList.toggle('t-corriendo', corre && f === 'normal');
-    b.classList.toggle('t-pausa', !corre && f !== 'quieto');
-    b.classList.toggle('t-aviso', f === 'aviso');
-    b.classList.toggle('t-excedido', f === 'excedido');
-    b.title = f === 'quieto' ? 'Timer de la ponencia (' + T.formato(timerEst.dur) + ')'
-      : (f === 'excedido' ? 'Tiempo cumplido' : 'Tiempo restante') + (corre ? '' : ' · en pausa');
-    const g = $('timerGrande');
-    g.textContent = txt;
-    g.className = 't-grande f-' + f;
-    $('timerEstado').textContent = f === 'quieto' ? 'sin empezar'
-      : f === 'excedido' ? 'tiempo cumplido' + (corre ? '' : ' · en pausa')
-      : (corre ? 'en curso' : 'en pausa');
-    $('timerPlay').textContent = corre ? 'pausar' : (f === 'quieto' ? 'iniciar' : 'reanudar');
-    const min = timerEst.dur / 60000;
+    // flotante
+    $('timerGrande').textContent = txt;
+    tf.classList.toggle('pausa', !corre && f !== 'quieto');
+    tf.classList.toggle('f-aviso', f === 'aviso');
+    tf.classList.toggle('f-excedido', f === 'excedido');
+    const play = $('timerPlay'), et = corre ? 'Pausar' : (f === 'quieto' ? 'Iniciar' : 'Reanudar');
+    play.textContent = corre ? '‖' : '▶︎';
+    play.title = et; play.setAttribute('aria-label', et);
+    const min = timerEst.dur / MINUTO;
     $('timerPresets').querySelectorAll('button').forEach(p => p.classList.toggle('sel', +p.dataset.min === min));
+    // botón de cabecera: con el flotante oculto y el timer en marcha, muestra el tiempo
+    const b = $('timer'), hora = !tVisible && f !== 'quieto';
+    b.textContent = hora ? (corre ? '' : '‖ ') + txt : 'timer';
+    b.classList.toggle('activo', tVisible);
+    b.classList.toggle('t-corriendo', hora && corre && f === 'normal');
+    b.classList.toggle('t-pausa', hora && !corre);
+    b.classList.toggle('t-aviso', hora && f === 'aviso');
+    b.classList.toggle('t-excedido', hora && f === 'excedido');
+    b.setAttribute('aria-pressed', tVisible ? 'true' : 'false');
   }
   function programarTick(){
     clearInterval(timerTick); timerTick = null;
@@ -1320,46 +1379,93 @@
   }
   function actualizarTimer(nuevo){ timerEst = nuevo; guardarTimer(); programarTick(); pintarTimer(); }
   function sincronizarCampos(){
-    $('timerMin').value = +(timerEst.dur / 60000).toFixed(2);
-    $('timerAviso').value = +(timerEst.aviso / 60000).toFixed(2);
+    $('timerMin').value = +(timerEst.dur / MINUTO).toFixed(2);
+    $('timerAviso').value = +(timerEst.aviso / MINUTO).toFixed(2);
   }
-  function abrirTimer(abrir){
-    const p = $('timerPanel');
-    p.classList.toggle('hide', !abrir);
-    $('timer').setAttribute('aria-expanded', abrir ? 'true' : 'false');
-    if (!abrir) return;
-    sincronizarCampos(); pintarTimer();
-    // que no se salga por la derecha en pantallas angostas
-    p.style.left = '0px';
-    const rc = p.getBoundingClientRect();
-    if (rc.right > window.innerWidth - 8) p.style.left = Math.min(0, window.innerWidth - 8 - rc.right) + 'px';
+
+  function aplicarCaja(){
+    tf.style.setProperty('--tw', caja.w + 'px');      // primero el ancho: la altura depende de él
+    const h = tf.offsetHeight || Math.round(caja.w * 0.62);
+    caja = T.acotarCaja(caja, window.innerWidth, window.innerHeight, h);
+    tf.style.setProperty('--tw', caja.w + 'px');
+    tf.style.left = caja.left + 'px';
+    tf.style.top = caja.top + 'px';
   }
-  $('timer').addEventListener('click', e => { e.stopPropagation(); abrirTimer($('timerPanel').classList.contains('hide')); });
-  $('timerPanel').addEventListener('click', e => e.stopPropagation());
-  document.addEventListener('click', () => { if (!$('timerPanel').classList.contains('hide')) abrirTimer(false); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('timerPanel').classList.contains('hide')){ abrirTimer(false); $('timer').focus(); } });
-  $('timerPresets').addEventListener('click', e => {
-    const b = e.target.closest('button[data-min]'); if (!b) return;
-    actualizarTimer(T.configurar(timerEst, +b.dataset.min, timerEst.aviso / 60000));
-    sincronizarCampos();
-  });
-  function leerCampos(){
-    const min = parseFloat($('timerMin').value), av = parseFloat($('timerAviso').value);
-    actualizarTimer(T.configurar(timerEst,
-      Number.isFinite(min) && min > 0 ? min : timerEst.dur / 60000,
-      Number.isFinite(av) && av >= 0 ? av : timerEst.aviso / 60000));
-    sincronizarCampos();
+  function mostrarTimer(v){
+    tVisible = v;
+    tf.classList.toggle('hide', !v);
+    guardarPref('timer-visible', v ? '1' : '0');
+    if (v) aplicarCaja();
+    pintarTimer();
   }
-  $('timerMin').addEventListener('change', leerCampos);
-  $('timerAviso').addEventListener('change', leerCampos);
-  [$('timerMin'), $('timerAviso')].forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); i.blur(); leerCampos(); } }));
+  function abrirConfig(abrir){
+    $('tConfig').classList.toggle('hide', !abrir);
+    $('tAjustes').setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    if (abrir) sincronizarCampos();
+    aplicarCaja();
+  }
+
+  $('timer').addEventListener('click', () => mostrarTimer(!tVisible));
+  $('tCerrar').addEventListener('click', () => mostrarTimer(false));
+  $('tAjustes').addEventListener('click', () => abrirConfig($('tConfig').classList.contains('hide')));
   $('timerPlay').addEventListener('click', () => {
     const ahora = Date.now();
     actualizarTimer(T.corriendo(timerEst) ? T.pausar(timerEst, ahora) : T.iniciar(timerEst, ahora));
   });
   $('timerReset').addEventListener('click', () => actualizarTimer(T.reiniciar(timerEst)));
+  $('tMas1').addEventListener('click', () => { actualizarTimer(T.sumar(timerEst, MINUTO)); sincronizarCampos(); });
+  $('tMas5').addEventListener('click', () => { actualizarTimer(T.sumar(timerEst, 5 * MINUTO)); sincronizarCampos(); });
+  $('timerPresets').addEventListener('click', e => {
+    const b = e.target.closest('button[data-min]'); if (!b) return;
+    actualizarTimer(T.configurar(timerEst, +b.dataset.min, timerEst.aviso / MINUTO));
+    sincronizarCampos();
+  });
+  function leerCampos(){
+    const min = parseFloat($('timerMin').value), av = parseFloat($('timerAviso').value);
+    actualizarTimer(T.configurar(timerEst,
+      Number.isFinite(min) && min > 0 ? min : timerEst.dur / MINUTO,
+      Number.isFinite(av) && av >= 0 ? av : timerEst.aviso / MINUTO));
+    sincronizarCampos();
+  }
+  $('timerMin').addEventListener('change', leerCampos);
+  $('timerAviso').addEventListener('change', leerCampos);
+  [$('timerMin'), $('timerAviso')].forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); i.blur(); leerCampos(); } }));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('tConfig').classList.contains('hide')) abrirConfig(false); });
+
+  // arrastrar (cuerpo) y cambiar tamaño (esquina), con ratón, lápiz o dedo
+  let gesto = null;
+  tf.addEventListener('pointerdown', e => {
+    if (e.button != null && e.button !== 0) return;
+    const tam = e.target === $('tAsa');
+    if (!tam && e.target.closest('button, input, label, .t-config')) return;
+    e.preventDefault();
+    gesto = { tam, x: e.clientX, y: e.clientY, left: caja.left, top: caja.top, w: caja.w };
+    if (e.pointerId != null && typeof tf.setPointerCapture === 'function'){ try { tf.setPointerCapture(e.pointerId); } catch(err){} }
+    tf.classList.add('arrastrando');
+  });
+  tf.addEventListener('pointermove', e => {
+    if (!gesto) return;
+    const dx = e.clientX - gesto.x, dy = e.clientY - gesto.y;
+    if (gesto.tam){
+      const d = Math.abs(dx) >= Math.abs(dy) ? dx : dy * 1.6;   // la caja es más ancha que alta
+      caja = { left: gesto.left, top: gesto.top, w: gesto.w + d };
+    } else {
+      caja = { left: gesto.left + dx, top: gesto.top + dy, w: gesto.w };
+    }
+    aplicarCaja();
+  });
+  function finGesto(){
+    if (!gesto) return;
+    gesto = null;
+    tf.classList.remove('arrastrando');
+    guardarPref('timer-caja', JSON.stringify(caja));
+  }
+  tf.addEventListener('pointerup', finGesto);
+  tf.addEventListener('pointercancel', finGesto);
+  window.addEventListener('resize', () => { if (tVisible) aplicarCaja(); });   // giro de la tablet
   document.addEventListener('visibilitychange', () => { if (!document.hidden) pintarTimer(); });
-  pintarTimer(); programarTick();
+
+  mostrarTimer(tVisible); programarTick();
 
   window.forjaPonencias = { logica: L };
   route();
